@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tresoreria">
+<meta name="theme-color" content="#24324a">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Tresoreria Mòbil · v1.0</title>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+  PANELL · TRESORERIA MÒBIL · v1.0 (13/10/2026)
+  ─────────────────────────────────────────────────────────────────────────────
+  · Identitat: id gestio-tresoreria-mobil · grup GESTIÓ · cuina apps/gestio/_cuina/gestio_tresoreria_mobil_rev.html.
+    Publicada a GitHub Pages: https://andreuplanes.github.io/tresoreria-mobil/ (només index.html + manifest + icones).
+    App INDEPENDENT de la Biblioteca Mòbil: repositori, adreça, icona, app de Dropbox i claus de localStorage pròpies
+    (prefix «tm.»).
+  · Què fa (part 1): les TRESORERIES CRISANGLASS i ROURES al mòbil, en horitzontal. Pendents de cobrar i de pagar (la
+    mateixa llista que la pestanya Tresoreria de l'ordinador: vençuts + setmana / mes / tot, remeses agrupades), factures
+    amb cerca, moviments del banc i de la caixa, i REGISTRAR COBRAMENTS I PAGAMENTS (també remeses senceres).
+  · DADES: els mateixos fitxers que l'app d'ordinador (patrimoni), a Dropbox:
+      /PANELL/dades/tresoreria/crisanglass/tresoreria_crisanglass.json
+      /PANELL/dades/tresoreria/roures/tresoreria_roures.json
+    XIFRATS amb la contrasenya comuna de les apps de gestió (/PANELL/dades/gestio_clau.json · NUCLI v1.3 «xifra»):
+    PBKDF2-SHA256 600.000 voltes → desembolica la clau mestra AES-GCM 256 → desxifra. Es desa igual: mateix sobre
+    {panell_xifrat:1, app:"gestio-tresoreria-<empresa>", kid, clau:{kid,pw,rescat}, iv, ct}, JSON compacte (indent 0) i
+    savedAt = ara, com el nucli. Si el fitxer NO està xifrat, l'app NO l'obre (la protecció s'activa a l'ordinador, 🔒).
+  · LÒGICA: les funcions de domini i els diàlegs «Registrar cobrament / pagament» i «Cobrar remesa» són CÒPIA LITERAL
+    de l'app d'ordinador (Tresoreria v1.20), injectades per l'script de muntatge (extreu.py): el resultat al fitxer és
+    exactament el mateix que si s'hagués fet a l'ordinador. CRISANGLASS i ROURES tenen aquestes funcions idèntiques.
+    Quan l'app d'ordinador canviï aquestes funcions, cal tornar a muntar aquesta.
+  · DESAT SEGUR: (1) abans d'obrir un diàleg es mira si el fitxer ha canviat a Dropbox (rev) i, si cal, es torna a llegir;
+    (2) en desar: còpia <fitxer>.bak al servidor (com el nucli), pujada amb «update: rev» (si algú l'ha canviat mentrestant,
+    Dropbox ho rebutja i NO es trepitja res: es torna a llegir i s'avisa) i comprovació de la mida desada.
+  · SEGURETAT: només el compte de Dropbox andreuplanes@gmail.com; contrasenya SEMPRE en obrir; es bloqueja sola (5 min
+    sense tocar-la o 2 min en segon pla): s'oblida la clau i les dades de la memòria. Res es desa al mòbil en clar
+    (localStorage només guarda el testimoni de Dropbox i preferències).
+  · ↶ DESFER L'ÚLTIM: torna l'estat d'abans de l'última operació feta al mòbil (i ho desa).
+  · ⚠ Si la Tresoreria està OBERTA a l'ordinador amb canvis per desar, l'ordinador no sap que el mòbil ha escrit:
+    tanca-la (⏎ Tancar) o torna-la a obrir després de fer servir el mòbil.
+  HISTÒRIA
+    v1.0 (13/10/2026) — Primera versió (part 1): consultar i registrar cobraments i pagaments.
+═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+:root{
+  --bg:#f3f5f9; --surface:#fff; --ink:#1b2431; --muted:#647089; --border:#e3e8ef; --border-strong:#cbd4e1;
+  --accent:#3d5a80; --accent-soft:#eef2f7; --pos:#15803d; --neg:#b3382f; --radius-sm:7px;
+  --e-emesa-bg:#eef1f5; --e-emesa-fg:#4b5768; --e-rebuda-bg:#fdf0dc; --e-rebuda-fg:#b45309; --e-remesa-bg:#fdf3e3; --e-remesa-fg:#b45309;
+  --e-cobrada-bg:#e7f5ec; --e-cobrada-fg:#15803d; --e-vencuda-bg:#fdeaea; --e-vencuda-fg:#b91c1c;
+  --sl:env(safe-area-inset-left,0px); --sr:env(safe-area-inset-right,0px); --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%}
+button{font-family:inherit; cursor:pointer}
+input,select,textarea{font-family:inherit}
+.num{font-variant-numeric:tabular-nums}
+.sub{color:var(--muted); font-size:12px}
+.amt.pos,.pos{color:var(--pos); font-weight:620} .amt.neg,.neg{color:var(--neg); font-weight:620}
+.pill{display:inline-block; font-size:11px; font-weight:600; color:var(--muted); background:var(--accent-soft); padding:1px 7px; border-radius:5px}
+.badge{display:inline-block; padding:1px 8px; border-radius:20px; font-size:11px; font-weight:650; white-space:nowrap}
+.b-emesa{background:var(--e-emesa-bg); color:var(--e-emesa-fg)} .b-rebuda{background:var(--e-rebuda-bg); color:var(--e-rebuda-fg)}
+.b-remesada{background:var(--e-remesa-bg); color:var(--e-remesa-fg)} .b-parcial{background:#ccfbf1; color:#0f766e; border:1px solid #5eead4}
+.b-cobrada,.b-pagada{background:var(--e-cobrada-bg); color:var(--e-cobrada-fg)} .b-vencuda{background:var(--e-vencuda-bg); color:var(--e-vencuda-fg)}
+.b-retornada{background:#f3e8ff; color:#7e22ce} .b-reclamada{background:#fee2e2; color:#b91c1c} .b-compensada{background:#e5e7eb; color:#475569}
+.b-prev{background:#eef2f7; color:#647089} .b-proforma{background:#fde68a; color:#78350f}
+.btn{border:1px solid var(--border-strong); background:var(--surface); color:var(--ink); padding:8px 13px; border-radius:var(--radius-sm); font-size:14px; font-weight:600; display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+.btn.primary{background:var(--accent); color:#fff; border-color:var(--accent)}
+.btn.ghost{border-color:transparent; background:transparent; color:var(--muted)}
+.btn.sm{padding:6px 11px; font-size:13px}
+.btn:disabled{opacity:.4}
+
+/* ── pantalles ── */
+.pant{display:none; min-height:100%} .pant.activa{display:block}
+#pEntrada,#pClau{display:none; align-items:center; justify-content:center; padding:24px calc(18px + var(--sr)) 24px calc(18px + var(--sl))}
+#pEntrada.activa,#pClau.activa{display:flex; min-height:100vh}
+.caixa{background:var(--surface); border-radius:14px; box-shadow:0 10px 40px rgba(23,32,45,.12); padding:22px 22px 18px; width:100%; max-width:420px}
+.caixa h1{margin:0 0 4px; font-size:19px} .caixa p{margin:6px 0 12px; color:var(--muted); font-size:13.5px}
+.caixa .fila{display:flex; gap:8px; align-items:center}
+.caixa input[type=password],.caixa input[type=text]{flex:1; font-size:17px; padding:11px 12px; border:1px solid var(--border-strong); border-radius:9px; width:100%}
+.ulls{border:0; background:transparent; font-size:20px; padding:4px 6px}
+.caixa .err{color:var(--neg); font-size:13px; min-height:18px; margin-top:8px}
+.caixa .peu{display:flex; justify-content:space-between; align-items:center; margin-top:14px}
+.logo{font-size:30px; margin-bottom:6px}
+
+/* ── capçalera ── */
+header{position:sticky; top:0; z-index:20; background:#24324a; color:#fff; padding:calc(6px + var(--st)) calc(10px + var(--sr)) 6px calc(10px + var(--sl)); display:flex; align-items:center; gap:10px}
+header h1{margin:0; font-size:15px; font-weight:700; white-space:nowrap} header .ver{font-size:11px; opacity:.7; font-weight:600}
+header select{font-size:15px; font-weight:700; border-radius:7px; border:0; padding:5px 8px; background:#3a4a66; color:#fff}
+header .kpi{display:flex; gap:14px; margin-left:auto; align-items:center; font-size:12px; white-space:nowrap}
+header .kpi b{font-size:14px} header .kpi .s{opacity:.7; display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.4px}
+header .ico{background:rgba(255,255,255,.14); color:#fff; border:0; border-radius:8px; padding:6px 9px; font-size:16px}
+header .ico:disabled{opacity:.35}
+.estatDesat{font-size:11px; opacity:.8; min-width:14px}
+nav{display:flex; gap:4px; padding:6px calc(10px + var(--sr)) 6px calc(10px + var(--sl)); background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:var(--hcap,44px); z-index:19; align-items:center; overflow-x:auto}
+nav .tab{border:0; background:transparent; color:var(--muted); font-weight:650; padding:7px 12px; border-radius:7px; font-size:14px; white-space:nowrap}
+nav .tab.on{background:var(--accent); color:#fff}
+nav .esp{flex:1}
+.seg{display:inline-flex; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; flex:none}
+.seg button{border:0; background:#fff; padding:6px 10px; font-size:13px; font-weight:600; color:var(--muted)}
+.seg button.on{background:var(--accent-soft); color:var(--accent)}
+.cerca{font-size:16px; padding:6px 10px; border:1px solid var(--border-strong); border-radius:8px; width:170px; flex:none}
+main{padding:8px calc(10px + var(--sr)) calc(30px + var(--sb)) calc(10px + var(--sl))}
+.resum{display:flex; gap:14px; flex-wrap:wrap; font-size:13px; margin:2px 2px 8px; color:var(--muted)}
+.resum b{color:var(--ink)}
+
+/* ── llistes (files tipus taula) ── */
+.llista{background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden}
+.fila{display:grid; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid #eef1f5; min-height:44px}
+.fila:last-child{border-bottom:0}
+.fila.cap{min-height:0; padding:6px 10px; background:#fafbfc; font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; position:sticky; top:0}
+.fila .r{text-align:right} .fila .ell{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fila.vencut{background:#fff8f7} .fila.toc{cursor:pointer} .fila.toc:active{background:#eef2f7}
+.fila.separ{min-height:0; background:#f6f8fb; font-size:12px; font-weight:700; color:var(--muted); padding:5px 10px}
+.gP{grid-template-columns:78px minmax(110px,1.3fr) minmax(120px,2fr) 100px 100px 84px}
+.gF{grid-template-columns:78px 92px minmax(110px,1.6fr) 96px 96px 104px 78px}
+.gM{grid-template-columns:78px minmax(110px,1.3fr) minmax(130px,2.2fr) 100px 100px}
+.buit{padding:30px 16px; text-align:center; color:var(--muted)}
+.mes{padding:10px; text-align:center}
+
+/* ── finestres (diàlegs de l'app d'ordinador, adaptats al mòbil) ── */
+.overlay{position:fixed; inset:0; background:rgba(23,32,45,.45); display:none; align-items:flex-start; justify-content:center; z-index:200; padding:calc(8px + var(--st)) calc(8px + var(--sr)) 8px calc(8px + var(--sl)); overflow:auto; -webkit-overflow-scrolling:touch}
+.overlay.open{display:flex}
+.modal{background:var(--surface); border-radius:12px; width:100%; max-width:760px; box-shadow:0 24px 60px rgba(23,32,45,.28)}
+.modal h3{margin:0; padding:12px 16px; font-size:16px; border-bottom:1px solid var(--border)}
+.modal .body{padding:12px 16px}
+.modal .foot{padding:10px 16px; border-top:1px solid var(--border); display:flex; gap:9px; justify-content:flex-end; position:sticky; bottom:0; background:var(--surface); border-radius:0 0 12px 12px}
+.modal .foot .btn{padding:10px 18px; font-size:15px}
+.field{margin-bottom:10px}
+.field label{display:block; font-size:12px; font-weight:650; color:var(--muted); margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%; border:1px solid var(--border-strong); border-radius:var(--radius-sm); padding:8px 10px; font-size:16px; background:var(--surface); color:var(--ink)}
+.field input:disabled{background:#f3f5f9}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.hint{font-size:12px; color:var(--muted); margin-top:-2px}
+.modal input[type=checkbox]{width:20px; height:20px}
+.det-cap{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13.5px; margin-bottom:8px}
+.det-cap b{font-size:15px}
+.trams .fila{grid-template-columns:42px 90px 110px 1fr auto; min-height:42px}
+
+.toast{position:fixed; bottom:calc(16px + var(--sb)); left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:9px; font-size:14px; font-weight:600; opacity:0; transition:opacity .2s; pointer-events:none; z-index:400; max-width:90vw; text-align:center}
+.toast.show{opacity:1}
+.cortina{position:fixed; inset:0; background:rgba(255,255,255,.75); z-index:500; display:none; align-items:center; justify-content:center; font-size:15px; font-weight:650; color:var(--accent); flex-direction:column; gap:10px}
+.cortina.on{display:flex}
+.roda{width:34px; height:34px; border-radius:50%; border:4px solid #d6deea; border-top-color:var(--accent); animation:gira 1s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+/* ── vertical: es demana girar el mòbil (es pot continuar igualment) ── */
+#gira{display:none}
+@media (orientation:portrait) and (max-width:700px){
+  body.obert:not(.vertOK) #gira{display:flex; position:fixed; inset:0; z-index:450; background:#24324a; color:#fff; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:30px}
+  #gira .g{font-size:60px; animation:balla 2.4s ease-in-out infinite} #gira p{margin:0; font-size:16px; opacity:.9}
+  @keyframes balla{0%,30%{transform:rotate(0)}55%,100%{transform:rotate(-90deg)}}
+  .gP{grid-template-columns:62px 1fr 92px 76px} .gP .cV{display:none}
+  .gF{grid-template-columns:70px 1fr 92px 70px} .gF .cV{display:none}
+  .gM{grid-template-columns:62px 1fr 92px} .gM .cV{display:none}
+  header .kpi .k2{display:none}
+  header{flex-wrap:wrap; row-gap:6px} header h1 .ver{display:none} header .kpi{order:5; width:100%; margin-left:0; justify-content:space-between}
+  header .kpi .k2{display:block}
+  nav{flex-wrap:wrap; row-gap:6px} nav .esp{display:none} #eines{flex-wrap:wrap} .cerca{width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- ── 1 · Connexió amb Dropbox (només el primer cop) ── -->
+<section class="pant" id="pEntrada">
+  <div class="caixa">
+    <div class="logo">💶</div>
+    <h1>Tresoreria Mòbil</h1>
+    <p>Connecta-la amb el teu Dropbox (només el primer cop, en aquest mòbil). Només s'hi pot connectar el compte <b>andreuplanes@gmail.com</b>.</p>
+    <div id="avisClau" class="err" style="display:none">Falta la clau de l'app de Dropbox: entra-la a ⚙ Configuració.</div>
+    <div class="peu"><button class="btn ghost" id="bCfg1">⚙ Configuració</button><button class="btn primary" id="bEntra">Connectar amb Dropbox</button></div>
+    <div class="sub" id="verE" style="margin-top:10px;text-align:right"></div>
+  </div>
+</section>
+
+<!-- ── 2 · Contrasenya (sempre en obrir) ── -->
+<section class="pant" id="pClau">
+  <div class="caixa">
+    <div class="logo">🔒</div>
+    <h1>Tresoreria Mòbil</h1>
+    <p>Contrasenya de les apps de gestió (la mateixa de l'ordinador).</p>
+    <form id="fClau" class="fila" autocomplete="off" onsubmit="return false">
+      <input type="password" id="iClau" autocomplete="current-password" placeholder="Contrasenya" enterkeyhint="go">
+      <button type="button" class="ulls" id="bUlls" title="Mostrar / amagar">👁</button>
+    </form>
+    <div class="err" id="eClau"></div>
+    <div class="peu"><button class="btn ghost" id="bCfg2">⚙</button><button class="btn primary" id="bObre">Obrir</button></div>
+    <div class="sub" id="verC" style="margin-top:10px;text-align:right"></div>
+  </div>
+</section>
+
+<!-- ── 3 · App ── -->
+<section class="pant" id="pApp">
+  <header id="cap">
+    <h1>Tresoreria <span class="ver" id="hVer"></span></h1>
+    <select id="sEmp" title="Empresa"><option value="crisanglass">CRISANGLASS</option><option value="roures">ROURES</option></select>
+    <div class="kpi">
+      <div><span class="s">Banc</span><b id="kBanc" class="num">—</b></div>
+      <div class="k2"><span class="s">Caixa</span><b id="kCaixa" class="num">—</b></div>
+      <div class="k2"><span class="s">A cobrar</span><b id="kCob" class="num pos">—</b></div>
+      <div class="k2"><span class="s">A pagar</span><b id="kPag" class="num neg">—</b></div>
+    </div>
+    <span class="estatDesat" id="eDesat"></span>
+    <button class="ico" id="bDesfer" title="Desfer l'última operació" disabled>↶</button>
+    <button class="ico" id="bRecarrega" title="Tornar a llegir de Dropbox">⟳</button>
+    <button class="ico" id="bBloca" title="Bloquejar">🔒</button>
+    <button class="ico" id="bCfg3" title="Configuració">⚙</button>
+  </header>
+  <nav id="nav">
+    <button class="tab on" data-v="pend">Pendents</button>
+    <button class="tab" data-v="fact">Factures</button>
+    <button class="tab" data-v="movs">Moviments</button>
+    <span class="esp"></span>
+    <span id="eines"></span>
+  </nav>
+  <main id="vista"></main>
+</section>
+
+<!-- ── ⚙ Configuració ── -->
+<section class="pant" id="pConfig">
+  <div style="padding:calc(14px + var(--st)) calc(16px + var(--sr)) 30px calc(16px + var(--sl)); max-width:620px; margin:0 auto">
+    <h2 style="margin:0 0 10px">⚙ Configuració</h2>
+    <div class="field"><label>Clau de l'app de Dropbox («App key» de l'app «PANELL Tresoreria»)</label><input id="cClau" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="field"><label>Carpeta del PANELL a Dropbox</label><input id="cArrel" placeholder="/PANELL" autocapitalize="off" autocorrect="off"></div>
+    <div class="field"><label>Bloquejar sola després de (minuts sense tocar-la)</label><select id="cMin"><option>2</option><option>5</option><option>10</option><option>15</option></select></div>
+    <p class="sub" id="cInfo"></p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px">
+      <button class="btn primary" id="cDesa">Desar</button>
+      <button class="btn" id="cTorna">Tornar</button>
+      <button class="btn ghost" id="cSurt" style="color:var(--neg)">Desconnectar Dropbox</button>
+    </div>
+  </div>
+</section>
+
+<div id="gira"><div class="g">📱</div><p><b>Gira el mòbil</b><br>La Tresoreria està pensada per veure-la en horitzontal.</p><button class="btn" id="bVertOK">Continuar en vertical</button></div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="cortina" id="cortina"><div class="roda"></div><div id="cortinaTxt">Un moment…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═════════════ Configuració ═════════════ */
+var APP_VERSION = 'v1.0';
+var APP_KEY_DEFECTE = 'ntd7gdp1oqu7whl';  /* «App key» de l'app de Dropbox «PANELL Tresoreria Andreu» (Andreu, 13/10/2026); també es pot canviar a ⚙ */
+var ARREL_DEFECTE = '/PANELL';
+var USUARIS_PERMESOS = [ 'andreuplanes@gmail.com' ];
+var EMPRESES = {
+  crisanglass:{ nom:'CRISANGLASS', app:'gestio-tresoreria-crisanglass', cami:'dades/tresoreria/crisanglass/tresoreria_crisanglass.json' },
+  roures:     { nom:'ROURES',      app:'gestio-tresoreria-roures',      cami:'dades/tresoreria/roures/tresoreria_roures.json' }
+};
+var CAMI_CLAU = 'dades/gestio_clau.json';
+function lsGet(k, d){ try{ var v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
+function lsSet(k, v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
+var CFG = { clau: lsGet('tm.clau', APP_KEY_DEFECTE), arrel: lsGet('tm.arrel', ARREL_DEFECTE), min: +lsGet('tm.min', '5') || 5, emp: lsGet('tm.emp', 'crisanglass') };
+if(!EMPRESES[CFG.emp]) CFG.emp='crisanglass';
+var REDIRECT = location.origin + location.pathname;
+var TOKEN = { access:null, refresh:null, exp:0 };
+
+function $(id){ return document.getElementById(id); }
+function mostra(id){ document.querySelectorAll('.pant').forEach(function(p){ p.classList.toggle('activa', p.id===id); }); document.body.classList.toggle('obert', id==='pApp'); window.scrollTo(0,0); }
+var _toastT=null;
+function toast(msg, ms){ var e=$('toast'); e.textContent=msg; e.classList.add('show'); clearTimeout(_toastT); _toastT=setTimeout(function(){ e.classList.remove('show'); }, ms||2600); }
+function cortina(txt){ $('cortinaTxt').textContent=txt||'Un moment…'; $('cortina').classList.add('on'); }
+function treuCortina(){ $('cortina').classList.remove('on'); }
+function cami(rel){ return CFG.arrel.replace(/\/+$/,'') + '/' + rel; }
+
+/* ═════════════ OAuth PKCE amb Dropbox (com la Biblioteca Mòbil, amb claus «tm.» pròpies) ═════════════ */
+function b64url(buf){ var u=new Uint8Array(buf), s=''; for(var i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function entra(){
+  if(!CFG.clau){ $('avisClau').style.display=''; return; }
+  var verif=b64url(crypto.getRandomValues(new Uint8Array(48))); sessionStorage.setItem('tm.verif', verif);
+  crypto.subtle.digest('SHA-256', new TextEncoder().encode(verif)).then(function(h){
+    location.href='https://www.dropbox.com/oauth2/authorize?client_id='+encodeURIComponent(CFG.clau)+'&response_type=code&code_challenge='+b64url(h)+'&code_challenge_method=S256&redirect_uri='+encodeURIComponent(REDIRECT)+'&token_access_type=offline';
+  });
+}
+function tokenPost(params){
+  return fetch('https://api.dropboxapi.com/oauth2/token',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams(params) })
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||('HTTP '+r.status)); return j; }); });
+}
+function acabaEntrada(code){
+  var verif=sessionStorage.getItem('tm.verif'); if(!verif) return Promise.reject(new Error("sessió d'entrada perduda; torna-hi"));
+  return tokenPost({ code:code, grant_type:'authorization_code', code_verifier:verif, client_id:CFG.clau, redirect_uri:REDIRECT }).then(function(j){
+    TOKEN={ access:j.access_token, refresh:j.refresh_token||null, exp:Date.now()+(j.expires_in||14400)*1000-60000 }; desaToken();
+    sessionStorage.removeItem('tm.verif'); history.replaceState(null,'',REDIRECT);
+  });
+}
+function desaToken(){ lsSet('tm.token', JSON.stringify(TOKEN)); }
+function llegeixToken(){ try{ TOKEN=JSON.parse(lsGet('tm.token','null'))||TOKEN; }catch(e){} }
+function accessToken(){
+  if(TOKEN.access && Date.now()<TOKEN.exp) return Promise.resolve(TOKEN.access);
+  if(!TOKEN.refresh) return Promise.reject(new Error('cal connectar amb Dropbox'));
+  return tokenPost({ grant_type:'refresh_token', refresh_token:TOKEN.refresh, client_id:CFG.clau }).then(function(j){
+    TOKEN.access=j.access_token; TOKEN.exp=Date.now()+(j.expires_in||14400)*1000-60000; desaToken(); return TOKEN.access; });
+}
+function desconnecta(){ TOKEN={access:null,refresh:null,exp:0}; lsSet('tm.token',null); lsSet('tm.compte',null); oblida(); mostra('pEntrada'); }
+
+/* ═════════════ API de Dropbox ═════════════ */
+function _err(fn, r){ return r.text().then(function(t){ var e=new Error(fn+': HTTP '+r.status+' '+t.slice(0,240)); e.status=r.status; e.cos=t; throw e; }); }
+function rpc(fn, arg, reintent){
+  return accessToken().then(function(t){
+    return fetch('https://api.dropboxapi.com/2/'+fn,{ method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' }, body:JSON.stringify(arg==null?null:arg) });
+  }).then(function(r){
+    if(r.status===401 && !reintent){ TOKEN.access=null; return rpc(fn, arg, true); }
+    if(!r.ok) return _err(fn, r);
+    return r.json();
+  });
+}
+function dbArg(o){ return JSON.stringify(o).replace(/[\u007f-￿]/g, function(c){ return '\\u'+('000'+c.charCodeAt(0).toString(16)).slice(-4); }); }
+function baixa(path, reintent){
+  return accessToken().then(function(t){
+    return fetch('https://content.dropboxapi.com/2/files/download',{ method:'POST', headers:{ Authorization:'Bearer '+t, 'Dropbox-API-Arg':dbArg({ path:path }) } });
+  }).then(function(r){
+    if(r.status===401 && !reintent){ TOKEN.access=null; return baixa(path, true); }
+    if(!r.ok) return _err('download', r);
+    return r.text();
+  });
+}
+function puja(path, text, rev, reintent){
+  var mode = rev ? { '.tag':'update', update:rev } : { '.tag':'add' };
+  return accessToken().then(function(t){
+    return fetch('https://content.dropboxapi.com/2/files/upload',{ method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/octet-stream',
+      'Dropbox-API-Arg':dbArg({ path:path, mode:mode, autorename:false, mute:true, strict_conflict:true }) }, body:new Blob([text]) });
+  }).then(function(r){
+    if(r.status===401 && !reintent){ TOKEN.access=null; return puja(path, text, rev, true); }
+    if(!r.ok) return _err('upload', r);
+    return r.json();
+  });
+}
+function metadades(path){ return rpc('files/get_metadata',{ path:path }); }
+
+/* ═════════════ Xifrat (mateix format que el NUCLI v1.3 del PANELL, mòdul «xifra») ═════════════ */
+var _TE=new TextEncoder(), _TD=new TextDecoder();
+function xfB64(buf){ var u=new Uint8Array(buf), s='', CH=0x8000; for(var i=0;i<u.length;i+=CH) s+=String.fromCharCode.apply(null, u.subarray(i, i+CH)); return btoa(s); }
+function xfDeB64(t){ var s=atob(t), u=new Uint8Array(s.length); for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+function xfKek(secret, salt, iter){ var S=crypto.subtle;
+  return S.importKey('raw', _TE.encode(secret), 'PBKDF2', false, ['deriveKey']).then(function(k){
+    return S.deriveKey({name:'PBKDF2', hash:'SHA-256', salt:salt, iterations:iter}, k, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']); }); }
+function xfGcm(key, bytes){ var iv=crypto.getRandomValues(new Uint8Array(12)); return crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key, bytes).then(function(ct){ return {iv:xfB64(iv), ct:xfB64(ct)}; }); }
+function xfDesGcm(key, o){ return crypto.subtle.decrypt({name:'AES-GCM', iv:xfDeB64(o.iv)}, key, xfDeB64(o.ct)); }
+function xfImporta(raw){ return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, false, ['encrypt','decrypt']); }
+function xfKid(raw){ return crypto.subtle.digest('SHA-256', raw).then(function(h){ return Array.prototype.map.call(new Uint8Array(h).slice(0,8), function(x){ return (x<16?'0':'')+x.toString(16); }).join(''); }); }
+function xfDesembolica(emb, secret){ return xfKek(secret, xfDeB64(emb.salt), emb.iter).then(function(k){ return xfDesGcm(k, emb); }).then(function(raw){ return new Uint8Array(raw); }); }
+function xfEsXifrat(text){ return typeof text==='string' && text.slice(0,40).indexOf('"panell_xifrat"')>=0; }
+
+/* ═════════════ Estat de la sessió ═════════════ */
+var CONTRA=null;          /* la contrasenya NOMÉS mentre l'app està oberta (per obrir l'altra empresa); s'oblida en bloquejar */
+var CLAU=null;            /* fitxer de claus comú (gestio_clau.json): {kid, pw, rescat, …} */
+var KEYS={};              /* kid → CryptoKey de la clau mestra */
+var DOC=null;             /* { emp, path, rev, env (sobre xifrat), kid, mida } */
+var state=null, filters={};
+var BRUT=false, DESANT=false, _desaT=null, _desfer=null;
+var VISTA='pend', TRIA={ hor:'setmana', tipus:'tots', cerca:'', fTipus:'tots', fEst:'pend', mCompte:'banc', mostra:400 };
+
+function oblida(){ CONTRA=null; KEYS={}; CLAU=null; state=null; DOC=null; BRUT=false; _desfer=null; filters={}; _netejaCaches(); }
+
+/* Desxifra amb la contrasenya: primer el fitxer de claus comú (com l'ordinador); si el fitxer de dades porta una altra clau
+   (p. ex. contrasenya canviada i fitxer encara no desat), es fa servir la còpia d'embolcall que porta el mateix fitxer. */
+function claudeKid(kid, emb){
+  if(KEYS[kid]) return Promise.resolve(KEYS[kid]);
+  var prova=[]; if(CLAU && CLAU.pw && (!CLAU.kid || CLAU.kid===kid)) prova.push(CLAU.pw); if(emb && emb.pw) prova.push(emb.pw);
+  function seg(i){
+    if(i>=prova.length){ var e=new Error('contrasenya incorrecta'); e.contra=true; return Promise.reject(e); }
+    return xfDesembolica(prova[i], CONTRA).then(function(raw){
+      return xfKid(raw).then(function(k2){ if(kid && k2!==kid) throw new Error('clau'); return xfImporta(raw).then(function(k){ KEYS[k2]=k; return k; }); });
+    }).catch(function(){ return seg(i+1); });
+  }
+  return seg(0);
+}
+function carregaEmpresa(emp){
+  var E=EMPRESES[emp], path=cami(E.cami);
+  cortina('Llegint '+E.nom+'…');
+  return metadades(path).then(function(md){
+    return baixa('rev:'+md.rev).then(function(text){
+      if(!xfEsXifrat(text)) throw new Error("aquest fitxer no està protegit amb contrasenya. Activa la protecció a l'ordinador (🔒) i torna-hi.");
+      var env=JSON.parse(text);
+      cortina('Desxifrant '+E.nom+'…');
+      return claudeKid(env.kid, env.clau).then(function(k){ return xfDesGcm(k, env); }).then(function(b){
+        var obj=JSON.parse(_TD.decode(b));
+        if(!obj || !obj.factures) throw new Error("el fitxer no té 'factures'");
+        state=obj; filters={}; _netejaCaches(); BRUT=false; _desfer=null;
+        DOC={ emp:emp, path:path, rev:md.rev, env:env, kid:env.kid, mida:md.size };
+        CFG.emp=emp; lsSet('tm.emp', emp);
+      });
+    });
+  }).then(function(){ treuCortina(); pintaTot(); }, function(e){ treuCortina(); throw e; });
+}
+/* Abans d'obrir un diàleg que canvia dades: si el fitxer ha canviat a Dropbox (l'ordinador hi ha desat), es torna a llegir. */
+function alDia(){
+  if(!DOC) return Promise.reject(new Error('sense dades'));
+  if(BRUT || DESANT) return Promise.resolve(true);
+  return metadades(DOC.path).then(function(md){
+    if(md.rev===DOC.rev) return true;
+    toast("El fitxer havia canviat a l'ordinador: el torno a llegir", 3200);
+    return carregaEmpresa(DOC.emp).then(function(){ return true; });
+  });
+}
+
+/* ═════════════ Desar (com el nucli: JSON compacte, savedAt, xifrat, .bak, comprovació) ═════════════ */
+function save(){ if(!state) return; BRUT=true; pintaDesat(); if(_desaT) clearTimeout(_desaT); _desaT=setTimeout(function(){ _desaT=null; desa(); }, 500); }
+function desa(){
+  if(!BRUT || !DOC || !state) return Promise.resolve(true);
+  if(DESANT){ if(!_desaT) _desaT=setTimeout(function(){ _desaT=null; desa(); }, 800); return Promise.resolve(false); }
+  DESANT=true; pintaDesat();
+  var d=DOC, E=EMPRESES[d.emp], k=KEYS[d.kid], text, xif;
+  state.savedAt=new Date().toISOString();
+  try{ text=JSON.stringify(state, null, 0); }catch(e){ DESANT=false; toast('⚠ No es poden preparar les dades: '+e.message, 6000); pintaDesat(); return Promise.resolve(false); }
+  var c=CLAU && CLAU.kid===d.kid ? CLAU : d.env.clau;
+  return xfGcm(k, _TE.encode(text)).then(function(o){
+    xif=JSON.stringify({panell_xifrat:1, app:E.app, kid:d.kid, clau:{kid:d.kid, pw:c.pw, rescat:c.rescat}, iv:o.iv, ct:o.ct});
+    /* còpia .bak de l'anterior, al servidor (no es torna a pujar) */
+    return rpc('files/delete_v2',{ path:d.path+'.bak' }).catch(function(){}).then(function(){ return rpc('files/copy_v2',{ from_path:d.path, to_path:d.path+'.bak', autorename:false }); }).catch(function(){});
+  }).then(function(){
+    return puja(d.path, xif, d.rev);
+  }).then(function(md){
+    if(md.size!==_TE.encode(xif).length) throw new Error("la comprovació després de desar no quadra ("+md.size+")");
+    d.rev=md.rev; d.mida=md.size; d.env=JSON.parse(xif); BRUT=false; DESANT=false; pintaDesat(); return true;
+  }).catch(function(e){
+    DESANT=false;
+    if(e && e.status===409){
+      /* algú (l'ordinador) ha desat mentrestant: NO es trepitja res; es torna a llegir el que hi ha */
+      BRUT=false; _desfer=null; pintaDesat();
+      alert("⚠ No s'ha desat: mentrestant el fitxer de "+E.nom+" ha canviat a l'ordinador.\n\nEl torno a llegir. Revisa-ho i, si cal, torna a fer l'operació.");
+      return carregaEmpresa(d.emp).then(function(){ return false; }, function(e2){ toast('⚠ '+e2.message, 6000); return false; });
+    }
+    pintaDesat(); toast('⚠ No s\'ha pogut desar: '+(e && e.message || e)+' · ho torno a provar', 6000);
+    if(!_desaT) _desaT=setTimeout(function(){ _desaT=null; desa(); }, 6000);
+    return false;
+  });
+}
+function pintaDesat(){ var e=$('eDesat'); if(!e) return; e.textContent = DESANT ? '⏳' : (BRUT ? '●' : '✓'); e.title = DESANT ? 'Desant…' : (BRUT ? 'Pendent de desar' : 'Desat a Dropbox');
+  $('bDesfer').disabled = !_desfer || DESANT; }
+
+/* ═════════════ Finestres (les funcions modal… de l'ordinador les fan servir tal qual) ═════════════ */
+var overlay=$('overlay'), modal=$('modal');
+function openModal(html, opts){ modal.innerHTML=html; overlay.classList.add('open'); overlay.scrollTop=0; }
+function closeModal(){ overlay.classList.remove('open'); modal.innerHTML=''; }
+overlay.addEventListener('click', function(e){ if(e.target.closest('[data-close]') || e.target===overlay){ closeModal(); } });
+function val(id){ return document.getElementById(id).value; }
+function _netejaCaches(){ _fIdxRef=null; _tIdxRef=null; }
+function render(){ pintaTot(); }
+/* Una operació: foto d'abans (per ↶ Desfer) + comprovar que el fitxer és al dia + obrir el diàleg de l'ordinador.
+   Si el diàleg es tanca sense acceptar, no hi ha cap canvi i la foto es descarta. */
+function opera(desc, obre){
+  return alDia().then(function(){
+    var antes=JSON.stringify(state); obre();
+    /* en tancar-se el diàleg: si l'estat ha canviat, la foto d'abans passa a ser el «↶ Desfer» */
+    var mira=setInterval(function(){
+      if(overlay.classList.contains('open') && modal.innerHTML) return;
+      clearInterval(mira);
+      if(state && JSON.stringify(state)!==antes){ _desfer={ text:antes, desc:desc }; }
+      pintaDesat();
+    }, 250);
+  }).catch(function(e){ toast('⚠ '+e.message, 5000); });
+}
+function desferUltim(){
+  if(!_desfer) return;
+  if(!confirm("Desfer l'última operació?\n\n"+_desfer.desc)) return;
+  state=JSON.parse(_desfer.text); _netejaCaches(); _desfer=null; save(); pintaTot(); toast('Desfet');
+}
+
+/* ═════════════ CÒPIA LITERAL de «Tresoreria» (ordinador) v1.20 · injectat per munta.py — NO editar aquí ═════════════ */
+var _tIdx=null,_tNom=null,_tIdxRef=null,_tIdxLen=-1;
+var _fIdx=null,_fIdxRef=null,_fIdxLen=-1;
+var uid = function(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); };
+var todayISO = function(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); };
+var eur = function(n){ return (n||0).toLocaleString("es-ES",{style:"currency",currency:"EUR"}); };
+function fdate(iso){ if(!iso) return "—"; var p=iso.split("-"); return p.length===3? p[2]+"/"+p[1]+"/"+p[0] : iso; }
+function daysDiff(iso){ if(!iso) return null; return Math.round((new Date(iso)-new Date(todayISO()))/86400000); }
+function nowISO(){ try{ return new Date().toISOString(); }catch(e){ return ""; } }
+function _rebuildTercerIdx(){ var a=state.tercers||[]; _tIdx=new Map(); _tNom=new Map(); for(var i=0;i<a.length;i++){ _tIdx.set(a[i].id,a[i]); var k=(a[i].nom||"").trim().toLowerCase(); if(k&&!_tNom.has(k)) _tNom.set(k,a[i]); } _tIdxRef=a; _tIdxLen=a.length; }
+function findTercer(id){ var a=state.tercers||[]; if(_tIdxRef!==a||_tIdxLen!==a.length) _rebuildTercerIdx(); return _tIdx.get(id); }
+function tercerPerNom(nom){ var a=state.tercers||[]; if(_tIdxRef!==a||_tIdxLen!==a.length) _rebuildTercerIdx(); return _tNom.get((nom||"").trim().toLowerCase()); }
+function estatTancat(f){ var e=f.estat; return e==="Cobrada"||e==="Pagada"||e==="Compensada"; }
+function retencioDe(f){ if(!f || f.tipus!=="proveidor") return 0; var r=parseFloat(f.retencioIRPF); return (isNaN(r)||r<=0)?0:Math.round(r*100)/100; }
+function suplertsDe(f){ if(!f || f.tipus!=="proveidor") return 0; var s=parseFloat(f.suplerts); return (isNaN(s)||s<=0)?0:Math.round(s*100)/100; }
+function importNetPagar(f){ var i=((f&&f.import)||0), sgn=(i<0)?-1:1; return Math.round((i - sgn*retencioDe(f))*100)/100; }
+function netVenciment(f, vencImport){ var sgn=((vencImport||0)<0)?-1:1; vencImport=Math.abs(vencImport||0); var g=Math.abs((f&&f.import)||0), ret=retencioDe(f); if(!ret||!g) return sgn*Math.round(vencImport*100)/100; return sgn*Math.round(vencImport*(Math.abs(importNetPagar(f))/g)*100)/100; }
+function sortidaPendent(f){ var pend=importPendent(f), g=Math.abs((f&&f.import)||0), ret=retencioDe(f); if(!ret||!g) return pend; return Math.round((pend - ret*(pend/g))*100)/100; }
+function vencimentsDe(f){
+  if(f && Array.isArray(f.venciments) && f.venciments.length){
+    return f.venciments.map(function(v,i){ return { data:v.data||f.venciment||null, import:(v.import!=null?v.import:0), estat:v.estat==="pagat"?"pagat":"pendent", movimentId:v.movimentId||null, dataCobrament:v.dataCobrament||null, dataPrevista:v.dataPrevista||null, impagat:v.impagat||null, descompte:v.descompte||null, aCompte:v.aCompte||null, _i:i }; });
+  }
+  return [ { data:(f?f.venciment:null)||null, import:(f?f.import:0)||0, estat:(f&&estatTancat(f))?"pagat":"pendent", movimentId:(f&&f.movimentId)||null, dataCobrament:(f&&f.dataCobrament)||null, dataPrevista:(f&&f.dataPrevistaVenc)||null, impagat:(f&&f.impagat)||null, descompte:(f&&f.descompte)||null, _i:0 } ];
+}
+function teVenciments(f){ return !!(f && Array.isArray(f.venciments) && f.venciments.length>1); }
+function importSaldat(f){ return Math.round(vencimentsDe(f).filter(function(v){return v.estat==="pagat";}).reduce(function(s,v){return s+(v.import||0);},0)*100)/100; }
+function importPendent(f){ return Math.round(vencimentsDe(f).filter(function(v){return v.estat!=="pagat";}).reduce(function(s,v){return s+(v.import||0);},0)*100)/100; }
+function saldatTot(f){ return vencimentsDe(f).every(function(v){return v.estat==="pagat";}); }
+function sumaVenciments(f){ return Math.round(vencimentsDe(f).reduce(function(s,v){return s+(v.import||0);},0)*100)/100; }
+function vencimentsQuadren(f){ return Math.abs(sumaVenciments(f) - (f.import||0)) < 0.005; }
+function properTram(f){ if(f.estat==="Reclamada") return f.dataPrevista||""; var vs=vencimentsDe(f).filter(function(v){return v.estat!=="pagat";}); if(!vs.length) return f.venciment||""; var ds=vs.map(function(v){return v.dataPrevista|| v.data;}).filter(Boolean).sort(); return ds[0]||f.venciment||""; }
+function projeccioVenciments(){
+  var out=[];
+  state.factures.forEach(function(f){
+    var pc=f.tipus==="client"&&f.estat!=="Cobrada"&&f.estat!=="Compensada";
+    var pp=f.tipus==="proveidor"&&f.estat!=="Pagada"&&f.estat!=="Compensada";
+    if(!pc&&!pp) return;
+    var vs=vencimentsDe(f), multi=vs.length>1;
+    vs.forEach(function(v,idx){
+      if(v.estat==="pagat") return;
+      // 08/09/2026 · REBUTS IMPAGATS: si el rebut ha tornat i se li ha posat una
+      // nova data de cobrament prevista, la projecció el mou allà i conserva el
+      // venciment original per als dies d'endarreriment — el mateix que ja es feia
+      // amb f.dataPrevista de les Reclamades, però ara per venciment.
+      var d = multi ? (v.dataPrevista||v.data||f.venciment)
+                    : (v.dataPrevista||f.dataPrevista||v.data||f.venciment); if(!d) return;
+      // 08/09/2026 · Un rebut tornat es projecta com UNA sola línia amb el total que
+      // esperem cobrar: el rebut MÉS les despeses que repercutim al client. El banc
+      // en farà un únic apunt, i així Tresoreria i Previsions ensenyen la xifra de
+      // debò. L'import de la FACTURA no es toca: aquestes despeses no en formen part.
+      var _dr = (pc && v.impagat && v.impagat.despesesRepercutides) ? Math.abs(v.impagat.despesesRepercutides) : 0;
+      // Descompte per pronto pago (només proveïdor): a Tresoreria i Previsions hi
+      // consta el que es pagarà de debò. La factura no es toca.
+      var _dte = (pp && v.descompte) ? Math.abs(parseFloat(v.descompte.import)||0) : 0;
+      // 10/09/2026 · ABONAMENT: el net ja ve amb signe; una nota de crèdit no porta
+      // descompte de pronto pago, i el signe s'ha de respectar tal com ve.
+      var _netBrut = netVenciment(f, v.import);
+      if(_netBrut < 0) _dte = 0;
+      var _netPag = Math.round((_netBrut - _dte)*100)/100;
+      out.push({f:f, tipus:f.tipus, data:d, import: pc? Math.round((v.import+_dr)*100)/100 : -_netPag, vidx: multi?idx:-1, ntot: vs.length, estatRecl:f.estat==="Reclamada", impagat: !!v.impagat, despRep:_dr, impBase: v.import, dte:_dte });
+    });
+  });
+  return out;
+}
+function estatDisplay(f){
+  if(f.estat==="Retornada") return { label:"Retornada", cls:"b-retornada" };
+  if(f.estat==="Compensada") return { label:"Compensada", cls:"b-compensada" };
+  if(f.estat==="Reclamada") return { label:"Reclamada", cls:"b-reclamada" };
+  var tancada = estatTancat(f);
+  if(!tancada && teVenciments(f)){
+    var _vs=vencimentsDe(f), _np=_vs.filter(function(v){return v.estat==="pagat";}).length;
+    if(_np>0 && _np<_vs.length){
+      var _lab=(f.tipus==="proveidor")?"Pagada parcial":"Cobrada parcial";
+      return { label:_lab, cls:"b-parcial", title:_np+" de "+_vs.length+" venciments "+(f.tipus==="proveidor"?"pagats":"cobrats")+" \u00b7 "+eur(importSaldat(f))+" de "+eur(f.import) };
+    }
+  }
+  if(!tancada && f.venciment && daysDiff(f.venciment)<0) return { label:"Vençuda", cls:"b-vencuda" };
+  var map={Emesa:"b-emesa",Rebuda:"b-rebuda",Remesada:"b-remesada",Cobrada:"b-cobrada",Pagada:"b-pagada",Retornada:"b-retornada",Compensada:"b-compensada",Reclamada:"b-reclamada"};
+  return { label:f.estat, cls:map[f.estat]||"b-emesa" };
+}
+function findFactura(id){ var a=state.factures||[]; if(_fIdxRef!==a||_fIdxLen!==a.length){ _fIdx=new Map(); for(var i=0;i<a.length;i++) _fIdx.set(a[i].id,a[i]); _fIdxRef=a; _fIdxLen=a.length; } return _fIdx.get(id); }
+function remesaDe(id){ return state.remeses.filter(function(r){return r.id===id;})[0]; }
+function entitatsList(){ var seen={}, out=[]; function add(e){ e=(e||"").trim(); if(!e) return; var k=e.toLowerCase(); if(k==="caixabank") e="CaixaBank"; if(!seen[k]){ seen[k]=1; out.push(e); } } add("CaixaBank"); (state.config.entitats||[]).forEach(add); (state.remeses||[]).forEach(function(r){ add(r.entitat); }); return out.sort(); }
+function registraEntitat(e){ e=(e||"").trim(); if(!e) return; if(!state.config.entitats) state.config.entitats=[]; if(state.config.entitats.indexOf(e)<0) state.config.entitats.push(e); }
+function registraCategoria(c){ c=(c||"").trim(); if(!c) return; if(!state.config.categories) state.config.categories=[]; if(state.config.categories.indexOf(c)<0) state.config.categories.push(c); }
+function bancTercer(nom){
+  nom=(nom||"").trim(); if(!nom) nom="CaixaBank";
+  if(nom.toLowerCase()==="caixabank") nom="CaixaBank";
+  var t=tercerPerNom(nom);
+  if(!t){ t={ id:uid(), nom:nom, tipus:"proveidor", esBanc:true, nif:"", adreca:"", codiPostal:"", poblacio:"", provincia:"", pais:"", regimIva:"general", diesPagament:null, diesPagamentMes:"", formaPagament:"", contacte:"", notes:"Entitat bancària (comissions de remeses i rebuts)" }; state.tercers.push(t); }
+  else if(!t.esBanc){ t.esBanc=true; }
+  registraEntitat(nom);
+  return t;
+}
+function remVenciment(r){ if(!r) return ""; if(r.venciment) return r.venciment; var vs=(r.factures||[]).map(findFactura).filter(Boolean).map(function(f){return f.venciment;}).filter(Boolean).sort(); return vs.length?vs[vs.length-1]:(r.data||""); }
+function remCobrada(r){ var fs=((r&&r.factures)||[]).map(findFactura).filter(Boolean); return fs.length>0 && fs.every(function(f){return f.estat==="Cobrada";}); }
+function cobrarFactura(f, data, concepte, caixa){
+  // 10/09/2026 · ABONAMENTS: el tipus del moviment el marca el signe (un abonament de
+  // client és una SORTIDA de caixa), no el tipus de factura.
+  var _imp=+f.import;
+  var m={ id:uid(), data:data, concepte:concepte||((_imp<0?"Pagament ":"Cobrament ")+f.num), import:_imp, tipus:(_imp<0?"pagament":"cobrament"), categoria:null, facturaId:f.id, conciliat:true };
+  if(caixa) m.compte="caixa";
+  state.moviments.push(m); f.movimentId=m.id;
+  f.estat="Cobrada"; f.dataCobrament=data; save();
+}
+function saldaVenciment(f, idx, data, concepte, caixa, dte){
+  if(!Array.isArray(f.venciments) || !f.venciments[idx]) return;
+  var v=f.venciments[idx], pagar=f.tipus==="proveidor";
+  // 10/09/2026 · ABONAMENTS: el signe del venciment es conserva (el Math.abs() el
+  // perdia i el moviment sortia sempre en el sentit «normal» de la factura). El
+  // concepte i el tipus del moviment els decideix el signe que en surt, no el tipus
+  // de factura: un abonament de proveïdor és un COBRAMENT.
+  var _mag=pagar?netVenciment(f, v.import):((v.import)||0);
+  var _imp= pagar?-_mag:_mag;
+  var _dx=(pagar && dte>0 && _imp<0)?Math.round(dte*100)/100:0;   /* v1.20 · descompte pronto pago dins el mateix moviment */
+  if(_dx) _imp=Math.round((_imp+_dx)*100)/100;
+  var m={ id:uid(), data:data, concepte:concepte||((_imp<0?"Pagament ":"Cobrament ")+f.num+" ("+(idx+1)+"/"+f.venciments.length+")"), import:_imp, tipus:(_imp<0?"pagament":"cobrament"), categoria:null, facturaId:f.id, conciliat:true };
+  if(_dx) m.dteDeduit=_dx;
+  if(caixa) m.compte="caixa";
+  state.moviments.push(m); v.movimentId=m.id;
+  v.estat="pagat"; v.dataCobrament=data;
+  if(f.venciments.every(function(x){return x.estat==="pagat";})){ f.estat=pagar?"Pagada":"Cobrada"; f.dataCobrament=data; }
+  save();
+}
+function pagarFactura(f, data, concepte, caixa, dte){
+  // 10/09/2026 · ABONAMENTS: un abonament de proveïdor entra al banc — moviment
+  // positiu i de tipus «cobrament», encara que la factura sigui de proveïdor.
+  var _imp=-importNetPagar(f);
+  var _dx=(dte>0 && _imp<0)?Math.round(dte*100)/100:0;   /* v1.20 · descompte pronto pago dins el mateix moviment */
+  if(_dx) _imp=Math.round((_imp+_dx)*100)/100;
+  var m={ id:uid(), data:data, concepte:concepte||((_imp<0?"Pagament ":"Cobrament ")+f.num), import:_imp, tipus:(_imp<0?"pagament":"cobrament"), categoria:null, facturaId:f.id, conciliat:true };
+  if(_dx) m.dteDeduit=_dx;
+  if(caixa) m.compte="caixa";
+  state.moviments.push(m); f.movimentId=m.id;
+  f.estat="Pagada"; f.dataCobrament=data; save();
+}
+function saldarEnRebut(ids, data, concepte){
+  var fs=ids.map(findFactura).filter(Boolean); if(!fs.length) return;
+  var net=fs.reduce(function(a,f){ return a + (f.tipus==="client"? +f.import : -importNetPagar(f)); },0);
+  net=Math.round(net*100)/100;
+  var tercers={}; fs.forEach(function(f){tercers[f.tercer]=1;});
+  var noms=Object.keys(tercers).join(", ");
+  var m={ id:uid(), data:data, concepte:concepte||("Rebut · "+fs.length+" factures"), import:net,
+          tipus:(net>=0?"cobrament":"pagament"), categoria:null, facturaId:null, facturaIds:ids.slice(), conciliat:true };
+  state.moviments.push(m);
+  fs.forEach(function(f){ f.estat=(f.tipus==="client"?"Cobrada":"Pagada"); f.dataCobrament=data; f.movimentId=m.id; });
+  filters.seleccio={}; save();
+}
+function factsDeMoviment(m){ return (m.facturaIds && m.facturaIds.length)? m.facturaIds : (m.facturaId? [m.facturaId] : []); }
+function movTercer(m){ var fids=factsDeMoviment(m); if(fids.length===1){ var f=findFactura(fids[0]); if(f) return f.tercer; } if(fids.length>1){ var noms=fids.map(function(id){ var ff=findFactura(id); return ff?(ff.tercer||""):""; }).filter(function(x){return x;}); var uniq=noms.filter(function(v,i){ return noms.indexOf(v)===i; }); if(uniq.length===1) return uniq[0]; return "diversos"; } if(m.tercerNom) return m.tercerNom; if(m.tercerId){ var t=findTercer(m.tercerId); if(t) return t.nom; } return ""; }
+function descompteDe(f, v){
+  var d = v ? v.descompte : (f?f.descompte:null);
+  var x = d ? Math.abs(parseFloat(d.import)||0) : 0;
+  return isNaN(x)?0:Math.round(x*100)/100;
+}
+function _vencDte(f, idx){
+  return (f && f.venciments && f.venciments.length) ? (f.venciments[idx]||null) : null;
+}
+function pendentCobrar(){ return state.factures.filter(function(f){return f.tipus==="client"&&f.estat!=="Cobrada"&&f.estat!=="Compensada";}).reduce(function(a,f){return a+importPendent(f);},0); }
+function pendentPagar(){ return state.factures.filter(function(f){return f.tipus==="proveidor"&&f.estat!=="Pagada"&&f.estat!=="Compensada";}).reduce(function(a,f){return a+sortidaPendent(f);},0); }
+function dataEf(f){ return (f.estat==="Reclamada") ? (f.dataPrevista||"") : (f.venciment||""); }
+function movsOrdenats(){ return state.moviments.slice().sort(function(a,b){ return a.data<b.data?-1:a.data>b.data?1:0; }); }
+function esCaixa(m){ return !!(m && m.compte==="caixa"); }
+function movsBanc(){ return movsOrdenats().filter(function(m){ return !esCaixa(m); }); }
+function esPrevisio(m){ return !!(m && m.previst); }
+function movsBancReals(){ return movsBanc().filter(function(m){ return !esPrevisio(m); }); }
+function saldoActual(){ return movsBancReals().reduce(function(a,m){return a+m.import;}, state.config.saldoInicial); }
+function saldoCaixa(){ return Math.round((state.moviments||[]).filter(esCaixa).reduce(function(a,m){return a+(m.import||0);}, (state.config.saldoInicialCaixa||0))*100)/100; }
+function esProforma(f){ return !!(f && f.proforma); }
+function baseFact(f){ if(esProforma(f)) return 0; return (f && f.base!=null)?f.base:((f&&f.import)||0); }
+function entitatOptions(sel){ sel=(sel||"").trim(); var list=entitatsList(); if(sel && list.map(function(x){return x.toLowerCase();}).indexOf(sel.toLowerCase())<0) list=[sel].concat(list); return list.map(function(e){ return '<option value="'+esc(e)+'"'+((sel&&e.toLowerCase()===sel.toLowerCase())?' selected':'')+'>'+esc(e)+'</option>'; }).join(''); }
+function desferCobrament(f){
+  var mid=f.movimentId;
+  if(mid){
+    var m=state.moviments.filter(function(x){return x.id===mid;})[0];
+    var ids=m?factsDeMoviment(m):[f.id];
+    state.moviments=state.moviments.filter(function(x){return x.id!==mid;});
+    ids.forEach(function(id){ var ff=findFactura(id); if(ff){ ff.movimentId=null; ff.dataCobrament=null; ff.estat=ff.tipus==="client"?(ff.remesaId?"Remesada":"Emesa"):"Rebuda"; } });
+  } else {
+    f.movimentId=null; f.dataCobrament=null;
+    f.estat = f.tipus==="client" ? (f.remesaId?"Remesada":"Emesa") : "Rebuda";
+  }
+  save();
+}
+function modalCobrarPagar(f, vencIdx){
+  var pagar = f.tipus==="proveidor";
+  var multi = teVenciments(f) && vencIdx!=null && vencIdx>=0;
+  var vs = multi ? f.venciments : null;
+  // 10/09/2026 · ABONAMENTS: aquí també mana el signe. En una rectificativa el diner
+  // va al revés del sentit «normal» de la factura, i el modal ho ha de dir ABANS de
+  // confirmar: _alBanc és el que veurà l'extracte.
+  var impBrut = multi ? ((vs[vencIdx].import)||0) : ((f.import)||0);
+  var imp = pagar ? (multi ? netVenciment(f, vs[vencIdx].import) : importNetPagar(f)) : impBrut;
+  var _alBanc = pagar ? -imp : imp;
+  var esAbonament = (imp < 0);   /* v1.19 · abans, a proveïdor, (imp > 0) marcava TOTES les factures normals com a abonament */
+  var _retLin = (pagar && retencioDe(f)>0) ? '<p class="sub" style="margin:-4px 0 8px"><span class="pill" title="Retenció d\'IRPF">IRPF</span> total '+eur(Math.abs(impBrut))+' − retenció '+eur(Math.abs(Math.round((impBrut-imp)*100)/100))+' = <strong>'+eur(Math.abs(imp))+'</strong> al banc</p>' : '';
+  var titolTram = multi ? (" · tram "+(vencIdx+1)+"/"+vs.length) : "";
+  // 08/09/2026 · REBUT IMPAGAT: si aquest venciment ve d'una devolució, al banc hi
+  // entrarà el rebut MÉS les despeses que li repercutim. La FACTURA, però, es liquida
+  // només amb el seu import: les despeses no en formen part (ni de la base ni de
+  // l'IVA) i per això el seu moviment NO s'enllaça a la factura — si s'hi enllacés,
+  // la factura constaria cobrada de més i saltaria com a anomalia a la conciliació.
+  var _vsCob = vencimentsDe(f);
+  var _vCob  = multi ? _vsCob[vencIdx] : _vsCob[0];
+  var _impCob = (!pagar && _vCob && _vCob.impagat) ? _vCob.impagat : null;
+  var _drepCob = _impCob ? Math.abs(_impCob.despesesRepercutides||0) : 0;
+  // Descompte per pronto pago (proveïdor): del banc en surt MENYS, però la factura
+  // es liquida amb el seu import real. La diferència es registra a part.
+  var _potDte = pagar && !esAbonament && imp>0;   /* v1.19 · el descompte es pot posar directament en pagar */
+  var _dteCob = (_potDte && _vCob && _vCob.descompte) ? Math.abs(parseFloat(_vCob.descompte.import)||0) : 0;
+  var _dtePct = (_potDte && _vCob && _vCob.descompte && _vCob.descompte.pct) ? _vCob.descompte.pct : "";
+  openModal('<h3>'+(pagar?"Registrar pagament":"Registrar cobrament")+titolTram+'</h3><div class="body">'+
+    '<p class="sub" style="margin-top:0">'+esc(f.tercer)+' · '+esc(f.num)+titolTram+' · <strong class="'+(_alBanc<0?'amt neg':'amt pos')+'">'+eur(_alBanc)+'</strong> al banc</p>'+
+    (esAbonament?'<p class="hint" style="margin:-4px 0 8px"><span class="badge b-parcial">abonament</span> Factura rectificativa: el moviment va <strong>al revés</strong> del sentit habitual d\'una factura de '+(pagar?'proveïdor':'client')+' — al banc hi '+(_alBanc<0?'sortiran':'entraran')+' <strong>'+eur(Math.abs(_alBanc))+'</strong>.</p>':'')+
+    _retLin+
+    '<div class="field"><label>Data '+(pagar?"de pagament":"de cobrament")+'</label><input id="c-data" type="date" value="'+todayISO()+'"></div>'+
+    '<div class="field"><label>Concepte al banc</label><input id="c-conc" value="'+(pagar?"Pagament ":"Cobrament ")+esc(f.num)+(multi?" ("+(vencIdx+1)+"/"+vs.length+")":"")+' · '+esc(f.tercer)+'"></div>'+
+    '<label style="display:flex;align-items:center;gap:8px;margin:8px 0 4px;cursor:pointer"><input type="checkbox" id="c-efectiu" '+(f.formaPagament==="Efectiu"?"checked":"")+'> <span>💵 En <strong>efectiu / caixa</strong> — es registra a la <strong>Caixa</strong> (no al banc; no afecta el saldo de tresoreria)</span></label>'+
+    '<div class="grid2"><div class="field"><label>Despeses / comissió del rebut (€) <span class="sub">(opcional · només amb moviment al banc)</span></label><input id="c-desp" type="number" step="0.01" placeholder="p. ex. 0.18"></div>'+
+    '<div class="field"><label>Banc (tercer de la comissió)</label><select id="c-banc">'+entitatOptions((f.remesaId&&remesaDe(f.remesaId)?remesaDe(f.remesaId).entitat:"")||"CaixaBank")+'</select></div></div>'+
+    (_potDte?('<div style="border:1px solid var(--line,#ddd);border-radius:8px;padding:8px 10px;margin:8px 0">'+
+      '<div style="font-weight:600;margin-bottom:4px">% Descompte pronto pago <span class="sub">(opcional · si pagues menys pel descompte)</span></div>'+
+      '<div class="grid2"><div class="field"><label>Descompte (%)</label><input id="c-dtepct" type="number" step="0.01" placeholder="p. ex. 2" value="'+_dtePct+'"></div>'+
+      '<div class="field"><label>Descompte (€)</label><input id="c-dte" type="number" step="0.01" placeholder="0,00" value="'+(_dteCob||"")+'"></div></div>'+
+      '<div class="field"><label>Import que pagues (€)</label><input id="c-pagues" type="number" step="0.01" value="'+(Math.round((imp-_dteCob)*100)/100).toFixed(2)+'"></div>'+
+      '<div class="hint" id="c-resumdte"></div></div>'):'')+
+    (_impCob?('<div class="field"><label>Despeses repercutides cobrades (€) <span class="sub">(el rebut va tornar el '+fdate(_impCob.data)+')</span></label>'+
+      '<input id="c-drep" type="number" step="0.01" value="'+_drepCob+'"></div>'+
+      '<div class="hint" id="c-resumimp"></div>'):'')+
+    '<p class="hint">Per defecte es crea el moviment al <strong>banc</strong>, s\'enllaça a la factura i queda conciliat. Si marques <strong>💵 en efectiu / caixa</strong>, el moviment va a la <strong>Caixa</strong> (pestanya 💵 Caixa): la factura queda pagada, el <strong>saldo del banc no es toca</strong> i l\'efectiu queda registrat. Les <strong>despeses</strong> del rebut només s\'apliquen quan hi ha moviment al banc.</p>'+
+    '</div><div class="foot"><button class="btn ghost" data-close>Cancel·lar</button><button class="btn primary" id="c-ok">'+(pagar?"Marcar pagada":"Marcar cobrada")+'</button></div>');
+  if(_potDte){
+    var _r2=function(x){ return Math.round(x*100)/100; };
+    var _rd=function(){ var el=document.getElementById("c-resumdte"); if(!el) return;
+      var x=_r2(parseFloat(val("c-dte"))||0);
+      var _ef=!!(document.getElementById("c-efectiu")&&document.getElementById("c-efectiu").checked);
+      el.innerHTML=(x>0?('A '+(_ef?'Caixa':'Tresoreria')+' es registra <strong>un sol moviment de '+eur(_r2(imp-x))+'</strong> (el que paguem) — factura '+eur(imp)+' − descompte '+eur(x)+
+        '. La factura queda <strong>pagada pel seu import ('+eur(imp)+')</strong> i el descompte hi queda anotat.'):
+        ('Sense descompte: en sortiran <strong>'+eur(imp)+'</strong>.'))+
+        ((x<0||x>=imp)?' <strong style="color:#c0392b">⚠ El descompte ha de ser més petit que l\'import.</strong>':'');
+    };
+    var _ip=document.getElementById("c-dtepct"), _ie=document.getElementById("c-dte"), _ipg=document.getElementById("c-pagues");
+    _ip.addEventListener("input",function(){ var p=parseFloat(_ip.value); var x=(!isNaN(p)&&p>0)?_r2(imp*p/100):0; _ie.value=x?x.toFixed(2):""; _ipg.value=_r2(imp-x).toFixed(2); _rd(); });
+    _ie.addEventListener("input",function(){ _ip.value=""; var x=_r2(parseFloat(_ie.value)||0); _ipg.value=_r2(imp-x).toFixed(2); _rd(); });
+    _ipg.addEventListener("input",function(){ _ip.value=""; var pg=parseFloat(_ipg.value); var x=isNaN(pg)?0:_r2(imp-pg); _ie.value=x>0?x.toFixed(2):""; _rd(); });
+    var _cef=document.getElementById("c-efectiu"); if(_cef) _cef.addEventListener("change",_rd);
+    _rd();
+  }
+  if(_impCob){
+    var _rz=function(){ var el=document.getElementById("c-resumimp"); if(!el) return;
+      var x=parseFloat(val("c-drep"))||0;
+      el.innerHTML='Al banc hi entraran <strong>'+eur(Math.round((imp+x)*100)/100)+'</strong> — rebut '+eur(imp)+
+        (x>0?' + despeses '+eur(x):'')+'. La factura es liquida amb <strong>'+eur(imp)+'</strong>; '+
+        (x>0?'les despeses van a Tresoreria com a ingrés propi.':'sense despeses.');
+    };
+    var _e=document.getElementById("c-drep"); if(_e) _e.addEventListener("input",_rz);
+    _rz();
+  }
+  document.getElementById("c-ok").onclick=function(){
+    var d=val("c-data"), c=val("c-conc");
+    var efectiu = !!(document.getElementById("c-efectiu") && document.getElementById("c-efectiu").checked);
+    var _dt=_potDte?Math.round((parseFloat(val("c-dte"))||0)*100)/100:0;
+    if(_potDte && (_dt<0 || _dt>=imp)){ toast("El descompte ha de ser més petit que l'import a pagar"); return; }
+    if(efectiu){ f.formaPagament="Efectiu"; }
+    if(_potDte && _dt>0 && c && c.indexOf("dte.")<0) c=c+" · dte. pronto pago "+eur(_dt);
+    if(multi) saldaVenciment(f, vencIdx, d, c, efectiu, (_potDte?_dt:0)); else if(pagar) pagarFactura(f,d,c,efectiu,(_potDte?_dt:0)); else cobrarFactura(f,d,c,efectiu);
+    // ── Descompte pronto pago: NO és un pagament de la factura ──
+    // La factura s'ha liquidat amb el seu import real (a dalt); aquí registrem la
+    // diferència que NO surt del banc. facturaId=null perquè la factura no consti
+    // pagada de més.
+    if(_potDte && _dt>0){
+      // v1.19 · es desa a la factura/venciment (com el botó «% Descompte pronto pago») i es registra la diferència
+      var _pctD=parseFloat(val("c-dtepct")); _pctD=(isNaN(_pctD)||_pctD<=0)?null:_pctD;
+      var _veD=_vencDte(f, multi?vencIdx:0), _infoD={ import:_dt, pct:_pctD, nota:null, data:d };
+      if(_veD) _veD.descompte=_infoD; else f.descompte=_infoD;
+      save();
+    } else if(_potDte && _dteCob && _dt===0){
+      var _veD0=_vencDte(f, multi?vencIdx:0); if(_veD0) delete _veD0.descompte; else delete f.descompte; save();
+    }
+    // ── Despeses repercutides al client: ingrés PROPI, no cobrament de la factura ──
+    var _dr=_impCob?parseFloat(val("c-drep")):NaN;
+    if(!efectiu && _impCob && !isNaN(_dr) && _dr>0){
+      registraCategoria("Despeses repercutides");
+      state.moviments.push({ id:uid(), data:d, concepte:"Despeses impagat "+f.num+" repercutides",
+        import:Math.abs(_dr), tipus:"cobrament", categoria:null,
+        facturaId:null, tercerId:f.tercerId||null, tercerNom:f.tercer||null,
+        referencia:f.num||null, conciliat:true });
+      save();
+    }
+    var desp=parseFloat(val("c-desp"));
+    if(!efectiu && !isNaN(desp) && desp>0){
+      var _banc=bancTercer(val("c-banc"));
+      registraCategoria("Bancs i comissions");
+      state.moviments.push({ id:uid(), data:d, concepte:"Despeses "+(pagar?"pagament ":"cobrament ")+f.num, import:-Math.abs(desp), tipus:"despesa", categoria:"Bancs i comissions", facturaId:null, tercerId:_banc.id, tercerNom:null, referencia:f.num||null, conciliat:true });
+      save();
+    }
+    closeModal(); render(); toast(efectiu ? (pagar?"Pagament en efectiu (sense moviment al banc)":"Cobrament en efectiu (sense moviment al banc)") : (pagar?"Pagament registrat":"Cobrament registrat"));
+  };
+}
+function modalCobrarRemesa(id){
+  var r=remesaDe(id); if(!r) return;
+  var fs=r.factures.map(findFactura).filter(Boolean);
+  var pend=fs.filter(function(f){return f.estat!=="Cobrada";});
+  if(!pend.length){ toast("La remesa ja està cobrada"); return; }
+  var tot=pend.reduce(function(a,f){return a+f.import;},0);
+  var vs=pend.map(function(f){return f.venciment;}).filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;});
+  var defData=(vs.length===1?vs[0]:todayISO());
+  var tercU=pend.map(function(f){return f.tercer;}).filter(function(v,i,a){return a.indexOf(v)===i;});
+  var tercLabel=tercU.length===1?tercU[0]:(tercU.length+" tercers");
+  var defConc="Cobrament remesa "+fdate(r.data);
+  openModal('<h3>Cobrar remesa</h3><div class="body">'+
+    '<p class="sub" style="margin-top:0">'+pend.length+' factures es marcaran <strong>Cobrades</strong> amb <strong>un sol moviment</strong> de banc de <strong>'+eur(tot)+'</strong>'+(r.entitat?' ('+esc(r.entitat)+')':'')+'.</p>'+
+    '<div class="grid2"><div class="field"><label>Data de cobrament</label><input id="cr-data" type="date" value="'+esc(defData)+'"></div>'+
+    '<div class="field"><label>Entitat</label><input value="'+esc(r.entitat||"")+'" disabled></div></div>'+
+    '<div class="field"><label>Concepte al banc</label><input id="cr-conc" value="'+esc(defConc)+'"></div>'+
+    '<div class="grid2"><div class="field"><label>Despeses / comissió de la remesa (€) <span class="sub">(opcional)</span></label><input id="cr-desp" type="number" step="0.01" placeholder="p. ex. 3.50"></div>'+
+    '<div class="field"><label>Banc (tercer de la comissió)</label><select id="cr-banc">'+entitatOptions(r.entitat)+'</select></div></div>'+
+    '<div class="hint">'+pend.map(function(f){return esc(f.num)+" ("+eur(f.import)+")";}).join(" · ")+'</div>'+
+    '<p class="hint">Si poses despeses, es crea una línia a part (categoria <strong>Bancs i comissions</strong>) atribuïda al <strong>banc</strong> seleccionat —no al client— i afecta el saldo.</p>'+
+    '</div><div class="foot"><button class="btn ghost" data-close>Cancel·lar</button><button class="btn primary" id="cr-ok">Cobrar remesa</button></div>');
+  document.getElementById("cr-ok").onclick=function(){
+    var ids=pend.map(function(f){return f.id;});
+    saldarEnRebut(ids, val("cr-data"), val("cr-conc").trim());
+    var desp=parseFloat(val("cr-desp"));
+    if(!isNaN(desp) && desp>0){
+      var banc=bancTercer(val("cr-banc"));
+      registraCategoria("Bancs i comissions");
+      state.moviments.push({ id:uid(), data:val("cr-data"), concepte:"Despeses remesa "+fdate(r.data), import:-Math.abs(desp), tipus:"despesa", categoria:"Bancs i comissions", tercerId:banc.id, tercerNom:null, facturaId:null, referencia:"Remesa "+fdate(r.data), conciliat:true });
+      save();
+    }
+    closeModal(); render(); toast(desp>0?"Remesa cobrada · comissió al banc":"Remesa cobrada");
+  };
+}
+/* ═════════════ fi de la còpia literal ═════════════ */
+
+/* ═════════════ Llistes ═════════════ */
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+function dCurta(iso){ if(!iso) return '—'; var p=iso.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0].slice(2) : iso; }
+function cercaOk(txt){ var q=(TRIA.cerca||'').toLowerCase().trim(); return !q || (txt||'').toLowerCase().indexOf(q)>=0; }
+
+/* Pendents: el mateix càlcul que la pestanya Tresoreria de l'ordinador (renderTresoreria): moviments reals futurs o previsions
+   + projecció de venciments; remeses de client agrupades en una sola línia; vençuts sempre, futurs fins a l'horitzó. */
+function pendentsTres(){
+  var today=todayISO(), horitzo=TRIA.hor, lim='9999-12-31';
+  if(horitzo!=='tot'){ var dd=new Date(today+'T00:00:00'); dd.setDate(dd.getDate()+(horitzo==='setmana'?7:31)); lim=dd.toISOString().slice(0,10); }
+  if((TRIA.cerca||'').trim()) lim='9999-12-31';
+  var reals=movsBanc(), run=state.config.saldoInicial, realList=[], saldoAvui=state.config.saldoInicial;
+  reals.forEach(function(m){ var esReal=!esPrevisio(m) && m.data<=today; if(esReal){ run+=m.import; saldoAvui+=m.import; } realList.push({m:m, saldo:run, esReal:esReal}); });
+  var realsFuturs=realList.filter(function(x){ return !x.esReal; });
+  var projs=projeccioVenciments(), pendents=[];
+  realsFuturs.forEach(function(x){ if(x.m.data<=lim) pendents.push({kind:'real', data:x.m.data, import:x.m.import, m:x.m}); });
+  var _remG={}, _projSeq=[];
+  projs.forEach(function(p){ var f=p.f; var r=(f.tipus==='client'&&f.remesaId&&!p.impagat)?remesaDe(f.remesaId):null;
+    if(r){ var g=_remG[r.id]; if(!g){ g={kind:'remproj', remesa:r, import:0, n:0, data:remVenciment(r)}; _remG[r.id]=g; _projSeq.push(g); } g.import+=p.import; g.n++; }
+    else { _projSeq.push({kind:'proj', data:p.data, import:p.import, f:f, vidx:p.vidx, ntot:p.ntot, impagat:p.impagat, despRep:p.despRep, impBase:p.impBase, estatRecl:p.estatRecl, dte:p.dte}); } });
+  _projSeq.forEach(function(p){ if(p.data<today || p.data<=lim) pendents.push(p); });
+  pendents.sort(function(a,b){ return a.data<b.data?-1:a.data>b.data?1:0; });
+  var spr=saldoAvui; pendents.forEach(function(p){ spr+=p.import; p.saldo=spr; });
+  var pc=0, pp=0; pendents.forEach(function(p){ if(p.import>0) pc+=p.import; else pp+=-p.import; });
+  return { llista:pendents, saldoAvui:saldoAvui, saldoPrevist:spr, pc:pc, pp:pp, today:today };
+}
+function tercerDe(p){ if(p.kind==='remproj'){ var f0=findFactura(p.remesa.factures[0]); return f0?f0.tercer:''; } if(p.kind==='real') return movTercer(p.m)||''; return p.f.tercer||''; }
+
+function vistaPendents(){
+  var R=pendentsTres(), h='', n=0;
+  var ll=R.llista.filter(function(p){
+    if(TRIA.tipus==='entrades' && !(p.import>0)) return false;
+    if(TRIA.tipus==='sortides' && !(p.import<0)) return false;
+    var conc = p.kind==='remproj' ? 'cobrament remesa' : (p.kind==='real' ? (p.m.concepte||'') : ((p.f.tipus==='client'?'cobrament previst':'pagament previst')+' '+(p.f.num||'')+' '+(p.f.referencia||'')));
+    return cercaOk(tercerDe(p)+' '+conc);
+  });
+  h+='<div class="resum"><span>Saldo avui <b class="num">'+eur(R.saldoAvui)+'</b></span><span>A cobrar <b class="num pos">'+eur(R.pc)+'</b></span><span>A pagar <b class="num neg">'+eur(R.pp)+'</b></span><span>Previst <b class="num">'+eur(R.saldoPrevist)+'</b></span><span>'+ll.length+' línies</span></div>';
+  h+='<div class="llista"><div class="fila cap gP"><div>Data</div><div>Tercer</div><div class="cV">Concepte</div><div class="r">Import</div><div class="r cV">Saldo</div><div></div></div>';
+  if(!ll.length) h+='<div class="buit">Res pendent en aquest període.</div>';
+  ll.slice(0, TRIA.mostra).forEach(function(p){
+    var vencut=p.data<R.today, terc=tercerDe(p), conc='', boto='';
+    if(p.kind==='remproj'){ var totFs=p.remesa.factures.length, parcial=p.n<totFs;
+      conc='Cobrament remesa <span class="pill">'+p.n+(parcial?'/'+totFs:'')+' fact.</span> <span class="badge '+(vencut?'b-vencuda':'b-prev')+'">'+(vencut?'vençut':'previst')+'</span>';
+      boto='<button class="btn sm primary" data-rem="'+p.remesa.id+'">Cobrar</button>'; }
+    else if(p.kind==='real'){ conc=esc(p.m.concepte||'')+' <span class="badge b-prev">'+(p.m.previst?'previsió':'data futura')+'</span>'; }
+    else { var f=p.f;
+      conc=(f.tipus==='client'?'Cobrament previst':'Pagament previst')+' <span class="sub">'+esc(f.num||'')+'</span>'+(p.ntot>1?' <span class="pill">tram '+(p.vidx+1)+'/'+p.ntot+'</span>':'')+' <span class="badge '+(vencut?'b-vencuda':'b-prev')+'">'+(vencut?'vençut':'previst')+'</span>'+(p.impagat?' <span class="badge b-retornada">impagat</span>':'')+(p.estatRecl?' <span class="badge b-reclamada">reclamada</span>':'')+(p.dte>0?' <span class="badge b-remesada">dte. '+eur(p.dte)+'</span>':'')+(esProforma(f)?' <span class="badge b-proforma">PROFORMA</span>':'');
+      boto='<button class="btn sm primary" data-cp="'+f.id+'" data-vidx="'+(p.ntot>1?p.vidx:'')+'">'+(f.tipus==='client'?'Cobrar':'Pagar')+'</button>'; }
+    h+='<div class="fila gP'+(vencut?' vencut':'')+(p.f?' toc':'')+'"'+(p.f?' data-fac="'+p.f.id+'"':'')+(p.kind==='remproj'?' data-remveu="'+p.remesa.id+'"':'')+'>'+
+      '<div class="num sub">'+dCurta(p.data)+'</div><div class="ell"><b>'+esc(terc)+'</b></div><div class="ell cV">'+conc+'</div>'+
+      '<div class="r num amt '+(p.import>=0?'pos':'neg')+'">'+eur(p.import)+'</div><div class="r num sub cV">'+eur(p.saldo)+'</div><div class="r">'+boto+'</div></div>';
+  });
+  if(ll.length>TRIA.mostra) h+='<div class="mes"><button class="btn" data-mes="1">Mostra\'n més ('+(ll.length-TRIA.mostra)+')</button></div>';
+  return h+'</div>';
+}
+
+function facturesFiltrades(){
+  return (state.factures||[]).filter(function(f){
+    if(TRIA.fTipus==='client' && f.tipus!=='client') return false;
+    if(TRIA.fTipus==='proveidor' && f.tipus!=='proveidor') return false;
+    var tanc=estatTancat(f);
+    if(TRIA.fEst==='pend' && tanc) return false;
+    if(TRIA.fEst==='saldades' && !tanc) return false;
+    return cercaOk((f.tercer||'')+' '+(f.num||'')+' '+(f.referencia||'')+' '+(f.notes||'')+' '+String(f.import));
+  }).sort(function(a,b){
+    if(TRIA.fEst==='pend'){ var x=properTram(a)||'9', y=properTram(b)||'9'; return x<y?-1:x>y?1:0; }
+    var p=a.dataEmissio||'', q=b.dataEmissio||''; return p<q?1:p>q?-1:0; });
+}
+function vistaFactures(){
+  var ll=facturesFiltrades(), h='', tot=0, pend=0;
+  ll.forEach(function(f){ tot+=f.import||0; pend+=f.tipus==='proveidor'?sortidaPendent(f):importPendent(f); });
+  h+='<div class="resum"><span>'+ll.length+' factures</span><span>Total <b class="num">'+eur(tot)+'</b></span><span>Pendent <b class="num">'+eur(pend)+'</b></span></div>';
+  h+='<div class="llista"><div class="fila cap gF"><div>Emissió</div><div class="cV">Núm.</div><div>Tercer</div><div class="r">Total</div><div class="r cV">Pendent</div><div>Estat</div><div class="cV">Venc.</div></div>';
+  if(!ll.length) h+='<div class="buit">Cap factura amb aquests filtres.</div>';
+  ll.slice(0, TRIA.mostra).forEach(function(f){
+    var e=estatDisplay(f), pen=f.tipus==='proveidor'?sortidaPendent(f):importPendent(f);
+    h+='<div class="fila gF toc" data-fac="'+f.id+'"><div class="num sub">'+dCurta(f.dataEmissio)+'</div><div class="ell cV sub">'+esc(f.num||'')+'</div>'+
+      '<div class="ell"><b>'+esc(f.tercer||'')+'</b> <span class="sub">'+(f.tipus==='client'?'client':'prov.')+'</span>'+(esProforma(f)?' <span class="badge b-proforma">PRO</span>':'')+'</div>'+
+      '<div class="r num">'+eur(f.import)+'</div><div class="r num cV '+(pen? (f.tipus==='client'?'pos':'neg') :'sub')+'">'+(pen?eur(pen):'—')+'</div>'+
+      '<div><span class="badge '+e.cls+'">'+esc(e.label)+'</span></div><div class="num sub cV">'+dCurta(properTram(f))+'</div></div>';
+  });
+  if(ll.length>TRIA.mostra) h+='<div class="mes"><button class="btn" data-mes="1">Mostra\'n més ('+(ll.length-TRIA.mostra)+')</button></div>';
+  return h+'</div>';
+}
+
+function vistaMoviments(){
+  var caixa=TRIA.mCompte==='caixa', today=todayISO();
+  var base = caixa ? (state.config.saldoInicialCaixa||0) : state.config.saldoInicial;
+  var ms = movsOrdenats().filter(function(m){ return caixa ? esCaixa(m) : !esCaixa(m); });
+  var run=base, ll=[];
+  ms.forEach(function(m){ var real=!esPrevisio(m) && m.data<=today; if(real) run+=m.import; ll.push({m:m, saldo:run, real:real}); });
+  ll=ll.filter(function(x){ return x.real && cercaOk((movTercer(x.m)||'')+' '+(x.m.concepte||'')+' '+(x.m.referencia||'')+' '+String(x.m.import)); }).reverse();
+  var h='<div class="resum"><span>Saldo '+(caixa?'caixa':'banc')+' <b class="num">'+eur(caixa?saldoCaixa():saldoActual())+'</b></span><span>'+ll.length+' moviments</span></div>';
+  h+='<div class="llista"><div class="fila cap gM"><div>Data</div><div>Tercer</div><div class="cV">Concepte</div><div class="r">Import</div><div class="r">Saldo</div></div>';
+  if(!ll.length) h+='<div class="buit">Cap moviment.</div>';
+  ll.slice(0, TRIA.mostra).forEach(function(x){ var m=x.m, fids=factsDeMoviment(m);
+    h+='<div class="fila gM'+(fids.length===1?' toc':'')+'"'+(fids.length===1?' data-fac="'+fids[0]+'"':'')+'><div class="num sub">'+dCurta(m.data)+'</div><div class="ell"><b>'+esc(movTercer(m)||'')+'</b></div>'+
+      '<div class="ell cV">'+esc(m.concepte||'')+(m.categoria?' <span class="sub">· '+esc(m.categoria)+'</span>':'')+(m.aCompte&&!fids.length?' <span class="badge b-remesada">a compte</span>':'')+'</div>'+
+      '<div class="r num amt '+(m.import>=0?'pos':'neg')+'">'+eur(m.import)+'</div><div class="r num sub">'+eur(x.saldo)+'</div></div>'; });
+  if(ll.length>TRIA.mostra) h+='<div class="mes"><button class="btn" data-mes="1">Mostra\'n més ('+(ll.length-TRIA.mostra)+')</button></div>';
+  return h+'</div>';
+}
+
+/* Fitxa d'una factura: dades, venciments i les accions de l'ordinador (Cobrar / Pagar, per tram, remesa, desfer) */
+function fitxaFactura(f){
+  if(!f) return;
+  var e=estatDisplay(f), vs=vencimentsDe(f), multi=teVenciments(f), pagar=f.tipus==='proveidor', obert=!estatTancat(f);
+  var r=f.remesaId?remesaDe(f.remesaId):null;
+  var h='<h3>'+(pagar?'Factura de proveïdor':'Factura de client')+(esProforma(f)?' · <span class="badge b-proforma">PROFORMA</span>':'')+'</h3><div class="body">'+
+    '<div class="det-cap"><b>'+esc(f.tercer||'')+'</b><span>Núm. <b>'+esc(f.num||'—')+'</b></span><span>Emissió '+fdate(f.dataEmissio)+'</span><span class="badge '+e.cls+'">'+esc(e.label)+'</span></div>'+
+    '<div class="det-cap"><span>Total <b class="num">'+eur(f.import)+'</b></span>'+(f.base!=null?'<span class="sub">base '+eur(f.base)+' · IVA '+eur(f.iva)+'</span>':'')+
+      (retencioDe(f)?'<span class="sub">IRPF '+eur(retencioDe(f))+' · al banc '+eur(importNetPagar(f))+'</span>':'')+(suplertsDe(f)?'<span class="sub">suplerts '+eur(suplertsDe(f))+'</span>':'')+
+      '<span>Pendent <b class="num">'+eur(pagar?sortidaPendent(f):importPendent(f))+'</b></span>'+(f.formaPagament?'<span class="sub">'+esc(f.formaPagament)+'</span>':'')+'</div>'+
+    (r?'<div class="det-cap sub">Remesa del '+fdate(r.data)+(r.entitat?' · '+esc(r.entitat):'')+' · '+r.factures.length+' factures</div>':'')+
+    (f.referencia?'<div class="sub">Ref.: '+esc(f.referencia)+'</div>':'')+(f.notes?'<div class="sub" style="white-space:pre-wrap">Notes: '+esc(f.notes)+'</div>':'')+
+    '<div class="llista trams" style="margin-top:10px"><div class="fila cap" style="grid-template-columns:42px 90px 110px 1fr auto"><div>Tram</div><div>Venc.</div><div class="r">Import</div><div>Estat</div><div></div></div>';
+  vs.forEach(function(v, i){
+    var pag=v.estat==='pagat', bt='';
+    if(!pag && obert) bt='<button class="btn sm primary" data-cp="'+f.id+'" data-vidx="'+(multi?i:'')+'">'+(pagar?'Pagar':'Cobrar')+'</button>';
+    h+='<div class="fila"><div class="sub">'+(i+1)+'/'+vs.length+'</div><div class="num sub">'+dCurta(v.dataPrevista||v.data)+'</div><div class="r num">'+eur(v.import)+'</div>'+
+      '<div>'+(pag?'<span class="badge b-cobrada">'+(pagar?'pagat':'cobrat')+(v.dataCobrament?' '+dCurta(v.dataCobrament):'')+'</span>':'<span class="badge b-prev">pendent</span>')+(v.impagat?' <span class="badge b-retornada">impagat</span>':'')+(v.descompte?' <span class="badge b-remesada">dte. '+eur(descompteDe(f,v))+'</span>':'')+'</div><div>'+bt+'</div></div>';
+  });
+  h+='</div></div><div class="foot">'+
+    (r && !pagar && !remCobrada(r) ? '<button class="btn" data-rem="'+r.id+'">Cobrar la remesa sencera</button>' : '')+
+    (estatTancat(f) && !multi && f.estat!=='Compensada' ? '<button class="btn" data-desfer="'+f.id+'">Desfer el '+(pagar?'pagament':'cobrament')+'</button>' : '')+
+    '<button class="btn ghost" data-close>Tancar</button></div>';
+  openModal(h);
+}
+
+/* ═════════════ Pintar ═════════════ */
+function pintaKpi(){
+  if(!state) return;
+  $('kBanc').textContent=eur(saldoActual()); $('kCaixa').textContent=eur(saldoCaixa());
+  $('kCob').textContent=eur(pendentCobrar()); $('kPag').textContent=eur(pendentPagar());
+  $('kBanc').className='num '+(saldoActual()<0?'neg':'');
+}
+function seg(clau, opcions){ return '<span class="seg" data-seg="'+clau+'">'+opcions.map(function(o){ return '<button data-val="'+o[0]+'" class="'+(TRIA[clau]===o[0]?'on':'')+'">'+o[1]+'</button>'; }).join('')+'</span>'; }
+function pintaEines(){
+  var h='';
+  if(VISTA==='pend') h=seg('hor',[['setmana','Setmana'],['mes','Mes'],['tot','Tot']])+' '+seg('tipus',[['tots','Tots'],['entrades','Entrades'],['sortides','Sortides']]);
+  if(VISTA==='fact') h=seg('fEst',[['pend','Pendents'],['saldades','Saldades'],['totes','Totes']])+' '+seg('fTipus',[['tots','Tots'],['client','Clients'],['proveidor','Proveïdors']]);
+  if(VISTA==='movs') h=seg('mCompte',[['banc','Banc'],['caixa','Caixa']]);
+  h+=' <input class="cerca" id="iCerca" type="search" placeholder="Cerca…" value="'+esc(TRIA.cerca)+'" autocomplete="off">';
+  $('eines').innerHTML=h; $('eines').style.display='inline-flex'; $('eines').style.gap='6px'; $('eines').style.alignItems='center';
+  $('iCerca').oninput=function(){ TRIA.cerca=this.value; TRIA.mostra=400; clearTimeout(pintaEines._t); pintaEines._t=setTimeout(pintaVista, 220); };
+}
+function pintaVista(){
+  if(!state) return;
+  $('vista').innerHTML = VISTA==='fact' ? vistaFactures() : (VISTA==='movs' ? vistaMoviments() : vistaPendents());
+}
+function pintaTot(){
+  if(!state) return;
+  $('sEmp').value=DOC?DOC.emp:CFG.emp;
+  document.querySelectorAll('nav .tab').forEach(function(b){ b.classList.toggle('on', b.dataset.v===VISTA); });
+  pintaKpi(); pintaEines(); pintaVista(); pintaDesat();
+  document.documentElement.style.setProperty('--hcap', $('cap').offsetHeight+'px');
+}
+
+/* ═════════════ Esdeveniments ═════════════ */
+$('nav').addEventListener('click', function(e){
+  var t=e.target.closest('.tab'); if(t){ VISTA=t.dataset.v; TRIA.mostra=400; pintaTot(); return; }
+  var b=e.target.closest('.seg button'); if(b){ var s=b.parentNode.dataset.seg; TRIA[s]=b.dataset.val; TRIA.mostra=400; pintaEines(); pintaVista(); }
+});
+document.addEventListener('click', function(e){
+  if(!state) return;
+  var b=e.target.closest('[data-cp],[data-rem],[data-desfer],[data-mes],[data-fac],[data-remveu]'); if(!b) return;
+  if(b.dataset.mes){ TRIA.mostra+=400; pintaVista(); return; }
+  if(b.dataset.cp){ e.stopPropagation(); var f=findFactura(b.dataset.cp), vi=b.dataset.vidx; if(!f) return;
+    var idf=f.id, vidx=(vi!=null && vi!=='')?+vi:null;
+    opera((f.tipus==='client'?'Cobrament ':'Pagament ')+(f.num||'')+' · '+(f.tercer||''), function(){ var ff=findFactura(idf); if(ff) modalCobrarPagar(ff, vidx); }); return; }
+  if(b.dataset.rem){ e.stopPropagation(); var rid=b.dataset.rem, r=remesaDe(rid);
+    opera('Cobrament de la remesa'+(r?' del '+fdate(r.data):''), function(){ modalCobrarRemesa(rid); }); return; }
+  if(b.dataset.desfer){ e.stopPropagation(); var fd=findFactura(b.dataset.desfer); if(!fd) return; var idd=fd.id;
+    if(!confirm('Desfer el '+(fd.tipus==='proveidor'?'pagament':'cobrament')+' de la factura '+fd.num+'?\nEs treu el moviment del banc i la factura torna a quedar pendent.')) return;
+    opera('Desfer '+(fd.num||''), function(){ var f2=findFactura(idd); closeModal(); if(f2){ desferCobrament(f2); render(); toast('Desfet'); } }); return; }
+  if(b.dataset.fac && !overlay.contains(b)){ fitxaFactura(findFactura(b.dataset.fac)); return; }
+  if(b.dataset.remveu && !overlay.contains(b)){ var rr=remesaDe(b.dataset.remveu); if(rr){ fitxaFactura(findFactura(rr.factures[0])); } return; }
+});
+$('sEmp').onchange=function(){ var emp=this.value; var fes=function(){ carregaEmpresa(emp).catch(function(e){ toast('⚠ '+e.message, 6000); $('sEmp').value=DOC?DOC.emp:CFG.emp; }); };
+  if(BRUT || DESANT){ desa().then(fes); } else fes(); };
+$('bDesfer').onclick=desferUltim;
+$('bRecarrega').onclick=function(){ if(!DOC) return; var fes=function(){ carregaEmpresa(DOC.emp).then(function(){ toast('Llegit de Dropbox'); }, function(e){ toast('⚠ '+e.message, 6000); }); }; if(BRUT||DESANT) desa().then(fes); else fes(); };
+$('bBloca').onclick=function(){ bloca(); };
+$('bVertOK').onclick=function(){ document.body.classList.add('vertOK'); };
+window.addEventListener('resize', function(){ var c=$('cap'); if(c && c.offsetHeight) document.documentElement.style.setProperty('--hcap', c.offsetHeight+'px'); });
+
+/* ═════════════ Bloqueig ═════════════ */
+var _ultimToc=Date.now(), _amagat=0;
+['touchstart','mousedown','keydown','scroll'].forEach(function(ev){ document.addEventListener(ev, function(){ _ultimToc=Date.now(); }, {passive:true, capture:true}); });
+function bloca(){
+  var fi=function(){ closeModal(); oblida(); $('vista').innerHTML=''; $('iClau').value=''; $('eClau').textContent=''; mostra(TOKEN.refresh?'pClau':'pEntrada'); };
+  if(BRUT || DESANT){ desa().then(fi, fi); } else fi();
+}
+setInterval(function(){ if(state && !DESANT && Date.now()-_ultimToc > CFG.min*60000) bloca(); }, 15000);
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden){ _amagat=Date.now(); if(BRUT) desa(); }
+  else if(state && _amagat && Date.now()-_amagat > 120000){ bloca(); }
+});
+
+/* ═════════════ Entrar ═════════════ */
+function obre(){
+  var p=$('iClau').value; if(!p){ $('eClau').textContent='Escriu la contrasenya.'; return; }
+  $('eClau').textContent=''; CONTRA=p; cortina('Comprovant la contrasenya…');
+  metadades(cami(CAMI_CLAU)).then(function(){ return baixa(cami(CAMI_CLAU)); }, function(){ return null; }).then(function(t){
+    try{ var o=t?JSON.parse(t):null; CLAU=(o && o.panell_clau && o.pw && !o.desactivat) ? o : null; }catch(e){ CLAU=null; }
+    return carregaEmpresa(CFG.emp);
+  }).then(function(){ $('iClau').value=''; mostra('pApp'); _ultimToc=Date.now(); pintaTot(); }, function(e){
+    treuCortina(); CONTRA=null; KEYS={};
+    $('eClau').textContent = (e && e.contra) ? 'Contrasenya incorrecta.' : ('⚠ '+(e && e.message || e));
+  });
+}
+$('bObre').onclick=obre;
+$('iClau').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); obre(); } });
+$('bUlls').onclick=function(){ var i=$('iClau'); i.type = i.type==='password' ? 'text' : 'password'; };
+$('bEntra').onclick=entra;
+
+/* ═════════════ ⚙ Configuració ═════════════ */
+var _deOn='pEntrada';
+function obreCfg(de){ _deOn=de; $('cClau').value=CFG.clau; $('cArrel').value=CFG.arrel; $('cMin').value=String(CFG.min);
+  $('cInfo').innerHTML='Versió <b>'+APP_VERSION+'</b> · Compte: <b>'+esc(lsGet('tm.compte','—'))+'</b><br>Adreça (ha de ser la «Redirect URI» de l\'app de Dropbox):<br><b>'+esc(REDIRECT)+'</b>';
+  mostra('pConfig'); }
+$('bCfg1').onclick=function(){ obreCfg('pEntrada'); }; $('bCfg2').onclick=function(){ obreCfg('pClau'); }; $('bCfg3').onclick=function(){ obreCfg('pApp'); };
+$('cDesa').onclick=function(){ CFG.clau=$('cClau').value.trim(); CFG.arrel=$('cArrel').value.trim()||ARREL_DEFECTE; CFG.min=+$('cMin').value||5;
+  lsSet('tm.clau', CFG.clau); lsSet('tm.arrel', CFG.arrel); lsSet('tm.min', String(CFG.min)); toast('Desat'); $('avisClau').style.display='none'; mostra(_deOn); if(_deOn==='pApp') pintaTot(); };
+$('cTorna').onclick=function(){ mostra(_deOn); if(_deOn==='pApp') pintaTot(); };
+$('cSurt').onclick=function(){ if(confirm('Desconnectar aquest mòbil del Dropbox? Caldrà tornar a connectar-lo.')) desconnecta(); };
+
+/* ═════════════ Arrencada ═════════════ */
+(function(){
+  $('hVer').textContent=APP_VERSION; $('verE').textContent=APP_VERSION; $('verC').textContent=APP_VERSION;
+  llegeixToken();
+  var qs=new URLSearchParams(location.search), code=qs.get('code'), err=qs.get('error_description')||qs.get('error');
+  if(err){ toast('Dropbox: '+err, 8000); history.replaceState(null,'',REDIRECT); }
+  var p = code ? acabaEntrada(code) : Promise.resolve();
+  p.then(function(){
+    if(!TOKEN.refresh && !TOKEN.access){ mostra('pEntrada'); return; }
+    return rpc('users/get_current_account', null).then(function(a){
+      var mail=(a && a.email || '').toLowerCase(); lsSet('tm.compte', mail);
+      if(USUARIS_PERMESOS.length && USUARIS_PERMESOS.indexOf(mail)<0){ alert('Aquest compte de Dropbox ('+mail+') no pot fer servir la Tresoreria.'); desconnecta(); return; }
+      mostra('pClau'); setTimeout(function(){ try{ $('iClau').focus(); }catch(e){} }, 300);
+    });
+  }).catch(function(e){ toast('⚠ '+(e && e.message || e), 7000); mostra(TOKEN.refresh?'pClau':'pEntrada'); });
+})();
+</script>
+</body>
+</html>
